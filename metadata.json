@@ -1,0 +1,5 @@
+{
+  "name": "Gestão de Aluguel de Materiais",
+  "description": "Sistema de controle de materiais alugados por centros de custo via extração de dados de documentos PDF.",
+  "requestFramePermissions": []
+}
