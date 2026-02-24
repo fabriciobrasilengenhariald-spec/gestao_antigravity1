@@ -16,7 +16,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
     { id: 'suppliers', label: 'Fornecedores', icon: Truck },
     { id: 'engineers', label: 'Engenheiros & Obras', icon: Users },
   ];
-
   return (
     <div className="w-64 min-h-screen flex flex-col z-10 hidden md:flex border-r border-[#1E293B] bg-[#0F1720]">
       <div className="p-6 border-b border-[#1E293B]">
