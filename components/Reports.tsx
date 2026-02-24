@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Rental, RentalStatus, Engineer } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, AlertTriangle, Hammer, DollarSign, Building, X, Calendar, Building2, Trophy, LayoutGrid, Activity } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Hammer, DollarSign, Building, X, Calendar, Building2, Trophy, LayoutGrid, Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDate, formatCurrencyAxis } from '../constants';
 
 interface ReportsProps {
@@ -13,6 +13,7 @@ const Reports: React.FC<ReportsProps> = ({ rentals, engineers }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'sites' | 'engineers' | 'equipment'>('overview');
     const [selectedSiteForDefects, setSelectedSiteForDefects] = useState<string | null>(null);
     const [selectedEngineerForDefects, setSelectedEngineerForDefects] = useState<{ id: string, name: string } | null>(null);
+    const [showAllSites, setShowAllSites] = useState(false);
 
     // AGGREGAÇÃO DE DADOS
     const totalRentals = rentals.length;
@@ -162,19 +163,91 @@ const Reports: React.FC<ReportsProps> = ({ rentals, engineers }) => {
                     {/* Gráficos */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="glass-panel p-6 rounded-2xl">
-                            <h3 className="text-lg font-bold text-white mb-6">Custos por Obra (Top 5)</h3>
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={sitesData.slice(0, 5)}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" hide />
-                                        <YAxis tickFormatter={formatCurrencyAxis} domain={[0, 'auto']} allowDecimals={false} />
-                                        <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString()}`} />
-                                        <Bar dataKey="totalSpent" name="Aluguel" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="extraCosts" name="Extras" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2">
+                                    <Trophy className="text-yellow-400" size={20} />
+                                    <h3 className="text-lg font-bold text-white">Ranking de Obras por Investimento</h3>
+                                </div>
+                                <span className="text-[9px] font-black text-[#94A3B8] uppercase tracking-widest">
+                                    {(sitesData as any[]).length} {(sitesData as any[]).length === 1 ? 'obra' : 'obras'}
+                                </span>
                             </div>
+
+                            {(() => {
+                                const sorted = [...(sitesData as any[])].sort((a, b) => b.totalSpent - a.totalSpent);
+                                const maxVal = sorted.length > 0 ? sorted[0].totalSpent : 1;
+                                const visible = showAllSites ? sorted : sorted.slice(0, 5);
+
+                                const medalColors: Record<number, string> = {
+                                    0: 'bg-yellow-400 text-yellow-900',
+                                    1: 'bg-slate-300 text-slate-700',
+                                    2: 'bg-orange-400 text-orange-900',
+                                };
+
+                                return (
+                                    <>
+                                        <div className={`space-y-3 ${showAllSites ? 'max-h-[320px] overflow-y-auto pr-2 custom-scrollbar' : ''}`}>
+                                            {visible.map((site: any, idx: number) => {
+                                                const pct = maxVal > 0 ? (site.totalSpent / maxVal) * 100 : 0;
+                                                return (
+                                                    <div key={site.name} className="group flex items-center gap-3 hover:bg-white/5 rounded-xl px-2 py-1.5 transition-all">
+                                                        {/* Posição / Medalha */}
+                                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${medalColors[idx] || 'bg-white/10 text-[#94A3B8]'
+                                                            }`}>
+                                                            {idx + 1}º
+                                                        </div>
+
+                                                        {/* Nome + Barra + Valor */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <p className="text-xs font-bold text-white truncate mr-3 group-hover:text-[#01A4F1] transition-colors" title={site.name}>
+                                                                    {site.name}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                    <span className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-widest">
+                                                                        {site.items} {site.items === 1 ? 'item' : 'itens'}
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-white">
+                                                                        R$ {site.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            {/* Barra proporcional */}
+                                                            <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all duration-700 ease-out"
+                                                                    style={{
+                                                                        width: `${Math.max(pct, 2)}%`,
+                                                                        background: idx === 0
+                                                                            ? 'linear-gradient(90deg, #01A4F1, #0067B4)'
+                                                                            : idx === 1
+                                                                                ? 'linear-gradient(90deg, #01A4F1cc, #0067B4cc)'
+                                                                                : 'linear-gradient(90deg, #01A4F199, #0067B499)'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Botão Ver Todas / Recolher */}
+                                        {sorted.length > 5 && (
+                                            <button
+                                                onClick={() => setShowAllSites(!showAllSites)}
+                                                className="mt-4 w-full flex items-center justify-center gap-1.5 py-2 text-[10px] font-black text-[#01A4F1] uppercase tracking-widest hover:bg-[#01A4F1]/10 rounded-xl border border-[#01A4F1]/20 transition-all"
+                                            >
+                                                {showAllSites ? (
+                                                    <><ChevronUp size={14} /> Mostrar Top 5</>
+                                                ) : (
+                                                    <><ChevronDown size={14} /> Ver Todas ({sorted.length})</>
+                                                )}
+                                            </button>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
 
                         <div className="glass-panel p-6 rounded-2xl">
