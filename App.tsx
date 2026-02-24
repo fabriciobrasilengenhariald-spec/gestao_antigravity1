@@ -8,7 +8,7 @@ import Suppliers from './components/Suppliers';
 import { Rental, Engineer, RentalStatus, Supplier } from './types';
 import { Menu } from 'lucide-react';
 import Reports from './components/Reports';
-import { formatEmailReminder, sendEmail } from './services/emailService';
+import { formatEmailReminderLegacy as formatEmailReminder, sendEmail } from './services/emailService';
 import Toast, { ToastType } from './components/Toast';
 import NotificationCenter, { Notification } from './components/NotificationCenter';
 import { supabase } from './services/supabaseClient';
@@ -224,6 +224,33 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRenewRental = async (id: string, newEndDate: string, notes: string) => {
+    try {
+      const { error } = await supabase
+        .from('alugueis')
+        .update({
+          data_fim_prevista: newEndDate,
+          status: RentalStatus.ACTIVE,
+          return_notes: notes || null
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Atualiza localmente sem precisar recarregar tudo
+      setRentals(prev => prev.map(r =>
+        r.id === id
+          ? { ...r, endDate: newEndDate, status: RentalStatus.ACTIVE, returnNotes: notes }
+          : r
+      ));
+
+      showToast('Locação renovada com sucesso!', 'success');
+    } catch (error: any) {
+      console.error('Erro ao renovar locação:', error);
+      showToast('Erro ao renovar locação no banco', 'error');
+    }
+  };
+
   const handleAddEngineer = async (newEng: Engineer) => {
     try {
       const { error } = await supabase
@@ -302,6 +329,7 @@ const App: React.FC = () => {
                 rentals={rentals}
                 engineers={engineers}
                 onUpdateStatus={handleUpdateStatus}
+                onRenewRental={handleRenewRental}
               />
             )}
             {currentView === 'reports' && (

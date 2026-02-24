@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
 import { Rental, RentalStatus, Engineer } from '../types';
-import { AlertCircle, CheckCircle, Clock, Send, Printer, FileText, ClipboardCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Send, Printer, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { formatDate } from '../constants';
 import ReturnModal from './ReturnModal';
 import InspectionModal from './InspectionModal';
 import ReturnReceipt from './ReturnReceipt';
+import RenewModal from './RenewModal';
 
 interface RentalsListProps {
   rentals: Rental[];
   engineers: Engineer[];
   onUpdateStatus: (id: string, newStatus: RentalStatus, extras?: any) => void;
+  onRenewRental: (id: string, newEndDate: string, notes: string) => void;
 }
 
-const RentalsList: React.FC<RentalsListProps> = ({ rentals, engineers, onUpdateStatus }) => {
+const RentalsList: React.FC<RentalsListProps> = ({ rentals, engineers, onUpdateStatus, onRenewRental }) => {
   const [selectedRentalForReturn, setSelectedRentalForReturn] = useState<Rental | null>(null);
   const [selectedRentalForInspection, setSelectedRentalForInspection] = useState<Rental | null>(null);
   const [receiptRental, setReceiptRental] = useState<Rental | null>(null);
+  const [selectedRentalForRenew, setSelectedRentalForRenew] = useState<Rental | null>(null);
 
   const getEngineer = (id?: string) => engineers.find(e => e.id === id);
 
@@ -87,6 +90,17 @@ const RentalsList: React.FC<RentalsListProps> = ({ rentals, engineers, onUpdateS
         />
       )}
 
+      {selectedRentalForRenew && (
+        <RenewModal
+          rental={selectedRentalForRenew}
+          onClose={() => setSelectedRentalForRenew(null)}
+          onConfirm={(id, newEndDate, notes) => {
+            onRenewRental(id, newEndDate, notes);
+            setSelectedRentalForRenew(null);
+          }}
+        />
+      )}
+
       <div className="glass-panel rounded-xl overflow-hidden shadow-2xl border border-white/5">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left border-collapse">
@@ -135,11 +149,11 @@ const RentalsList: React.FC<RentalsListProps> = ({ rentals, engineers, onUpdateS
                         )}
                       </td>
                       <td className="px-6 py-5">
-                        <div className="flex justify-center items-center gap-2">
+                        <div className="flex justify-center items-center gap-2 flex-wrap">
                           <button
                             onClick={() => handleNotify(rental)}
                             className="p-2.5 text-[#01A4F1] bg-[#01A4F1]/10 hover:bg-[#01A4F1]/20 rounded-xl border border-[#01A4F1]/20 transition-all duration-200"
-                            title="Notificar Engenheiro"
+                            title="Notificar Engenheiro via Telegram"
                           >
                             <Send size={16} />
                           </button>
@@ -152,12 +166,39 @@ const RentalsList: React.FC<RentalsListProps> = ({ rentals, engineers, onUpdateS
                               <Printer size={14} /> Recibo
                             </button>
                           ) : rental.status === RentalStatus.OVERDUE ? (
-                            <button
-                              onClick={() => setSelectedRentalForReturn(rental)}
-                              className="flex items-center gap-2 px-4 py-2 bg-[#FF6201] text-white hover:brightness-110 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-[#FF6201]/20 transition-all"
-                            >
-                              <AlertCircle size={14} /> Devolver
-                            </button>
+                            // VENCIDO: mostra RENOVAR + DEVOLVER lado a lado
+                            <>
+                              <button
+                                onClick={() => setSelectedRentalForRenew(rental)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/30 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                title="Renovar / Prorrogar prazo"
+                              >
+                                <RefreshCw size={14} /> Renovar
+                              </button>
+                              <button
+                                onClick={() => setSelectedRentalForReturn(rental)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#FF6201] text-white hover:brightness-110 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-[#FF6201]/20 transition-all"
+                              >
+                                <AlertCircle size={14} /> Devolver
+                              </button>
+                            </>
+                          ) : rental.status === RentalStatus.EXPIRING_SOON ? (
+                            // VENCENDO EM BREVE: mostra RENOVAR + DEVOLVER
+                            <>
+                              <button
+                                onClick={() => setSelectedRentalForRenew(rental)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 hover:bg-[#10B981]/30 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                title="Renovar / Prorrogar prazo"
+                              >
+                                <RefreshCw size={14} /> Renovar
+                              </button>
+                              <button
+                                onClick={() => setSelectedRentalForReturn(rental)}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#0067B4] text-white hover:bg-[#01A4F1] rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                              >
+                                <CheckCircle size={14} /> Devolver
+                              </button>
+                            </>
                           ) : !rental.returnCondition && rental.status === RentalStatus.RETURNED ? (
                             <button
                               onClick={() => setSelectedRentalForInspection(rental)}
