@@ -2,41 +2,19 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Gestão de Aluguel de Materiais
+# Run and deploy your AI Studio app
 
-Sistema de controle de estoque e aluguel de materiais com processamento automático de notas via IA.
+This contains everything you need to run your app locally.
 
-## Executando Localmente
+View your app in AI Studio: https://ai.studio/apps/drive/14zgb-X6BwkXfdZWfs-awVc7XAldFfy7I
 
-**Pré-requisitos:** Node.js
+## Run Locally
 
-1. Instale as dependências:
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
    `npm install`
-
-2. Configure o arquivo `.env.local` usando o exemplo em [.env.example](.env.example):
-   ```env
-   VITE_SUPABASE_URL=sua_url
-   VITE_SUPABASE_ANON_KEY=sua_chave_publica
-   VITE_GEMINI_API_KEY=sua_chave_gemini
-   ```
-
-3. Inicie o servidor:
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
    `npm run dev`
-
-## Deploy na Vercel
-
-Este projeto está pronto para deploy na Vercel. Siga os passos:
-
-1. Suba este projeto para um repositório no GitHub.
-
-2. Acesse a [Vercel](https://vercel.com) e importe o projeto.
-
-3. Nas configurações de **Environment Variables**, adicione as seguintes variáveis (copie os valores do seu arquivo `.env.local`):
-
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_GEMINI_API_KEY`
-
-4. Clique em **Deploy**.
-
-> **Nota de Segurança:** Nunca exponha sua chave `service_role` (chave mestra) no frontend ou nas variáveis de ambiente deste projeto. Use apenas a chave `anon` (pública).

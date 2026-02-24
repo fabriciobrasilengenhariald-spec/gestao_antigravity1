@@ -1,204 +1,344 @@
 import React, { useState, useEffect } from 'react';
-import Layout from './components/Layout';
+import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import ProjectsInventory from './components/ProjectsInventory';
-import FileUpload from './components/FileUpload';
-import Search from './components/Search';
-import Login from './components/Login';
-import { AppView, CostCenter, DocumentData } from './types';
-import { supabase, isSupabaseConfigured } from './services/supabaseClient';
-import { saveDocumentToSupabase, fetchInventoryFromSupabase, fetchMovementsHistory } from './services/dbService';
-import { Session } from '@supabase/supabase-js';
-import { Loader2, Database } from 'lucide-react';
+import Scanner from './components/Scanner';
+import RentalsList from './components/RentalsList';
+import Engineers from './components/Engineers';
+import Suppliers from './components/Suppliers';
+import { Rental, Engineer, RentalStatus, Supplier } from './types';
+import { Menu } from 'lucide-react';
+import Reports from './components/Reports';
+import { formatEmailReminder, sendEmail } from './services/emailService';
+import Toast, { ToastType } from './components/Toast';
+import NotificationCenter, { Notification } from './components/NotificationCenter';
+import { supabase } from './services/supabaseClient';
+import { mapRentalFromDB, mapRentalToDB, mapEngineerFromDB, mapSupplierFromDB } from './services/dbMapper';
 
-function App() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loadingSession, setLoadingSession] = useState(true);
+interface ToastItem {
+  id: string;
+  type: ToastType;
+  message: string;
+}
 
-  const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
-  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
-  const [processedDocuments, setProcessedDocuments] = useState<Set<string>>(new Set());
-  const [movementsHistory, setMovementsHistory] = useState<DocumentData[]>([]);
+const App: React.FC = () => {
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [rentals, setRentals] = useState<Rental[]>([]);
+  const [engineers, setEngineers] = useState<Engineer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [supabaseConfigMissing, setSupabaseConfigMissing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Estados de Notificações
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // 1. Auth Initialization
-  useEffect(() => {
-    // Verificação crítica antes de tentar usar o cliente Supabase
-    if (!isSupabaseConfigured()) {
-      setSupabaseConfigMissing(true);
-      setLoadingSession(false);
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoadingSession(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // 2. Data Loading (Only if logged in)
-  useEffect(() => {
-    if (session) {
-      loadData();
-    }
-  }, [session]);
-
-  // 3. API Key check
-  useEffect(() => {
-    // Check for VITE_GEMINI_API_KEY or injected keys
-    const hasKey = import.meta.env.VITE_GEMINI_API_KEY || (window as any).GEMINI_API_KEY;
-    if (!hasKey) {
-      setApiKeyMissing(true);
-    }
-  }, []);
-
-  const loadData = async () => {
-    setIsSyncing(true);
-    try {
-      const [inventory, history] = await Promise.all([
-        fetchInventoryFromSupabase(),
-        fetchMovementsHistory()
-      ]);
-
-      setCostCenters(inventory);
-      setMovementsHistory(history);
-
-      // Rebuild processed documents set to avoid duplicates
-      const docSet = new Set<string>();
-      history.forEach(h => docSet.add(h.documentNumber));
-      setProcessedDocuments(docSet);
-
-    } catch (error) {
-      console.error("Erro ao carregar dados do Supabase:", error);
-      alert("Erro ao sincronizar dados. Verifique a conexão.");
-    } finally {
-      setIsSyncing(false);
-    }
+  const showToast = (message: string, type: ToastType = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, type, message }]);
+    const newNotif: Notification = { id, type, message, timestamp: new Date() };
+    setNotifications(prev => [newNotif, ...prev].slice(0, 10));
+    setUnreadCount(prev => prev + 1);
   };
 
-  const handleDocumentProcessed = async (data: DocumentData) => {
-    setIsSyncing(true);
-    try {
-      // Save to Database
-      await saveDocumentToSupabase(data);
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
-      // Reload Database View (let the DB handle the math of balancing stock)
-      await loadData();
+  const clearUnread = () => {
+    setUnreadCount(0);
+  };
+
+  // Carregar dados do Supabase
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // 1. Buscar Engenheiros (Users)
+      const { data: engData, error: engError } = await supabase
+        .from('users')
+        .select('*');
+
+      if (engError) throw engError;
+      const mappedEngs = engData.map(mapEngineerFromDB);
+      setEngineers(mappedEngs);
+
+      // 2. Buscar Fornecedores
+      const { data: supData, error: supError } = await supabase
+        .from('fornecedores')
+        .select('*');
+
+      if (supError) throw supError;
+      const mappedSups = supData.map(mapSupplierFromDB);
+      setSuppliers(mappedSups);
+
+      // 3. Buscar Aluguéis
+      const { data: rentData, error: rentError } = await supabase
+        .from('alugueis')
+        .select(`
+          *,
+          obras (nome),
+          fornecedores (name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (rentError) throw rentError;
+      const mappedRentals = rentData.map(mapRentalFromDB);
+      setRentals(mappedRentals);
 
     } catch (error: any) {
-      console.error("Erro ao salvar documento:", error);
-      alert(`Erro ao salvar no banco de dados: ${error.message}`);
-      setIsSyncing(false);
+      console.error('Erro ao buscar dados:', error);
+      showToast('Erro ao carregar dados do banco', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSelectKey = async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      setApiKeyMissing(false);
-      window.location.reload();
-    } else {
-      alert("O seletor de chave de API não está disponível neste ambiente.");
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // Verificação de vencimentos (opcional: pode ser movido para fetchData ou cron)
+  useEffect(() => {
+    if (loading || rentals.length === 0) return;
+
+    const timer = setTimeout(() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      rentals.forEach(r => {
+        if (r.status === RentalStatus.RETURNED) return;
+
+        const endDate = new Date(r.endDate);
+        endDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        const eng = engineers.find(e => e.id === r.engineerId);
+        if (!eng) return;
+
+        if (diffDays === 1) {
+          const email = formatEmailReminder(r, eng, 'pre-expire');
+          sendEmail(email);
+          showToast(`Lembrete (-1 dia) para ${eng.name}`, 'info');
+        } else if (diffDays === 0) {
+          const email = formatEmailReminder(r, eng, 'expiry');
+          sendEmail(email);
+          showToast(`Vencimento HOJE para ${eng.name}`, 'warning');
+        } else if (diffDays < 0) {
+          const email = formatEmailReminder(r, eng, 'overdue');
+          sendEmail(email);
+          showToast(`ATRASO notificado para ${eng.name}`, 'error');
+        }
+      });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [loading, rentals]);
+
+  const handleSaveRental = async (newRentals: Rental[], associatedSupplier: Supplier) => {
+    console.log('Iniciando salvamento bulk:', { newRentals, associatedSupplier });
+    try {
+      // 1. Salvar/Atualizar Fornecedor
+      const supplierPayload = {
+        id: associatedSupplier.id,
+        name: associatedSupplier.name,
+        cnpj: associatedSupplier.cnpj,
+        address: associatedSupplier.address,
+        city: associatedSupplier.city
+      };
+      console.log('Upsert Fornecedor:', supplierPayload);
+
+      const { error: supError } = await supabase
+        .from('fornecedores')
+        .upsert(supplierPayload);
+
+      if (supError) throw supError;
+
+      // 2. Resolver Obra (Garantir que existe)
+      const siteName = newRentals[0]?.constructionSiteName || 'Obra Desconhecida';
+      console.log('Resolvendo Obra:', siteName);
+
+      let { data: siteData } = await supabase
+        .from('obras')
+        .select('id')
+        .eq('nome', siteName)
+        .maybeSingle();
+
+      if (!siteData) {
+        console.log('Obra não encontrada, criando nova...');
+        const { data: newSite, error: siteError } = await supabase
+          .from('obras')
+          .insert({ nome: siteName })
+          .select('id')
+          .single();
+        if (siteError) throw siteError;
+        siteData = newSite;
+      }
+      console.log('ID da Obra resolvido:', siteData?.id);
+
+      // 3. Preparar Alugueis para Bulk Insert
+      const dbRentals = newRentals.map(r => ({
+        ...mapRentalToDB(r),
+        id_obra: siteData?.id
+      }));
+
+      console.log('Payload Final Alugueis (Alvo Supabase):', dbRentals);
+
+      const { error: rentError } = await supabase
+        .from('alugueis')
+        .insert(dbRentals);
+
+      if (rentError) {
+        console.error('Erro específico do Supabase no insert:', rentError);
+        throw rentError;
+      }
+
+      fetchData();
+      setCurrentView('rentals');
+      showToast(`${newRentals.length} itens registrados com sucesso!`, 'success');
+    } catch (error: any) {
+      console.error('Erro fatal ao salvar:', error);
+      showToast(`Erro ao salvar: ${error.message || 'Verifique o console'}`, 'error');
     }
   };
 
-  // --- RENDERS ---
+  const handleUpdateStatus = async (id: string, newStatus: RentalStatus, extras?: any) => {
+    try {
+      const dbUpdates = mapRentalToDB({ status: newStatus, ...(extras || {}) });
+      // Remove undefined keys
+      Object.keys(dbUpdates).forEach(key => (dbUpdates as any)[key] === undefined && delete (dbUpdates as any)[key]);
 
-  if (loadingSession) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+      const { error } = await supabase
+        .from('alugueis')
+        .update(dbUpdates)
+        .eq('id', id);
 
-  // Tela de erro se Supabase não estiver configurado
-  if (supabaseConfigMissing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center border-t-4 border-red-500">
-          <div className="mx-auto bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-            <Database className="w-8 h-8 text-red-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Configuração de Banco de Dados</h1>
-          <p className="text-gray-600 mb-6 text-sm">
-            Não foi possível conectar ao Supabase. As variáveis de ambiente necessárias não foram encontradas.
-          </p>
-          <div className="bg-gray-100 p-4 rounded text-left text-xs font-mono text-gray-700 overflow-x-auto mb-6 border border-gray-200">
-            <span className="font-bold">Variáveis Obrigatórias:</span><br />
-            process.env.SUPABASE_URL<br />
-            process.env.SUPABASE_ANON_KEY
-          </div>
-          <p className="text-xs text-gray-400">
-            Configure estas variáveis no seu ambiente de desenvolvimento para continuar.
-          </p>
-        </div>
-      </div>
-    );
-  }
+      if (error) throw error;
 
-  if (!session) {
-    return <Login />;
-  }
+      setRentals(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, ...(extras || {}) } : r));
 
-  if (apiKeyMissing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Configuração Necessária</h1>
-          <p className="text-gray-600 mb-6">
-            Para processar os documentos PDF, você precisa conectar sua chave de API do Google Gemini.
-          </p>
-          <button
-            onClick={handleSelectKey}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
-          >
-            Selecionar Chave de API
-          </button>
-        </div>
-      </div>
-    )
-  }
+      if (newStatus === RentalStatus.RETURNED) {
+        showToast(`Item devolvido com sucesso`, 'success');
+      }
+    } catch (error: any) {
+      console.error('Erro ao atualizar:', error);
+      showToast('Erro ao atualizar no banco', 'error');
+    }
+  };
+
+  const handleAddEngineer = async (newEng: Engineer) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          id: newEng.id || undefined,
+          nome: newEng.name,
+          email: newEng.email,
+          role: 'engenheiro'
+        });
+
+      if (error) throw error;
+      fetchData();
+      showToast(`Engenheiro registrado: ${newEng.name}`, 'success');
+    } catch (error: any) {
+      showToast('Erro ao salvar engenheiro', 'error');
+    }
+  };
 
   return (
-    <Layout currentView={currentView} onChangeView={setCurrentView}>
-      {/* Sync Indicator */}
-      {isSyncing && (
-        <div className="fixed top-4 right-4 bg-white p-2 rounded-lg shadow-md flex items-center space-x-2 z-50">
-          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-          <span className="text-xs text-gray-600 font-medium">Sincronizando...</span>
-        </div>
+    <div className="flex min-h-screen font-sans text-white selection:bg-[#01A4F1] bg-[#0B1426]">
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/80 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      {currentView === AppView.DASHBOARD && (
-        <Dashboard costCenters={costCenters} />
-      )}
-      {currentView === AppView.PROJECTS && (
-        <ProjectsInventory costCenters={costCenters} />
-      )}
-      {currentView === AppView.UPLOAD && (
-        <FileUpload
-          onDataProcessed={handleDocumentProcessed}
-          processedDocuments={processedDocuments}
-          costCenters={costCenters}
-        />
-      )}
-      {currentView === AppView.SEARCH && (
-        <Search costCenters={costCenters} movements={movementsHistory} />
-      )}
-    </Layout>
+      <div className={`fixed inset-y-0 left-0 transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition duration-200 ease-in-out z-30 md:block`}>
+        <Sidebar currentView={currentView} setCurrentView={(view) => { setCurrentView(view); setMobileMenuOpen(false); }} />
+      </div>
+
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#0B1426]">
+        {/* Header Updated with Brand Style */}
+        <header className="h-16 flex items-center justify-between px-6 shrink-0 z-20 border-b border-white/5 bg-[#0F1720]/80 backdrop-blur-md">
+          <button
+            className="md:hidden text-slate-600"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            <Menu />
+          </button>
+
+          <div className="flex-1 md:flex-initial" />
+
+          <div className="flex items-center space-x-6">
+            <NotificationCenter
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onClearUnread={clearUnread}
+            />
+
+            <div className="h-8 w-px bg-slate-200 hidden md:block" />
+
+            <div className="flex items-center space-x-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-slate-800">Administrador</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black">Online</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs ring-2 ring-white">
+                AD
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-7xl mx-auto">
+            {currentView === 'dashboard' && <Dashboard rentals={rentals} />}
+            {currentView === 'upload' && (
+              <Scanner
+                engineers={engineers}
+                suppliers={suppliers}
+                onSave={handleSaveRental}
+                onCancel={() => setCurrentView('dashboard')}
+              />
+            )}
+            {currentView === 'rentals' && (
+              <RentalsList
+                rentals={rentals}
+                engineers={engineers}
+                onUpdateStatus={handleUpdateStatus}
+              />
+            )}
+            {currentView === 'reports' && (
+              <Reports rentals={rentals} engineers={engineers} />
+            )}
+            {currentView === 'suppliers' && (
+              <Suppliers suppliers={suppliers} rentals={rentals} />
+            )}
+            {currentView === 'engineers' && (
+              <Engineers
+                engineers={engineers}
+                onAddEngineer={handleAddEngineer}
+                onUpdateEngineer={(updatedEng) => {
+                  setEngineers(prev => prev.map(e => e.id === updatedEng.id ? updatedEng : e));
+                  showToast(`Dados de ${updatedEng.name} atualizados`, 'success');
+                }}
+                rentals={rentals}
+              />
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* Toast Container - Moved to TOP-RIGHT */}
+      <div className="fixed top-6 right-6 z-[130] flex flex-col gap-3 pointer-events-none">
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            id={toast.id}
+            type={toast.type}
+            message={toast.message}
+            onClose={removeToast}
+          />
+        ))}
+      </div>
+    </div>
   );
-}
+};
 
 export default App;

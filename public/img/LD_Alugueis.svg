@@ -1,0 +1,15 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0067B4"/>
+      <stop offset="100%" stop-color="#01A4F1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#0B1426"/>
+  <rect x="179" y="122" width="665" height="665" rx="146" fill="url(#grad)"/>
+  <text x="512" y="454.5" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="232" font-weight="700" fill="#FFFFFF">LD</text>
+  <text x="512" y="907" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="81" font-weight="700"
+        fill="#FF6201" letter-spacing="4">ALUGUÉIS</text>
+</svg>

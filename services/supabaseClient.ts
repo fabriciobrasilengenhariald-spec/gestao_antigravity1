@@ -1,12 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// As variáveis de ambiente devem ser configuradas no .env.local ou na Vercel.
-// Removida a chave hardcoded por segurança.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://zdcypvdhvrqfwydxqlxg.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-export const isSupabaseConfigured = () => {
-    return SUPABASE_URL && SUPABASE_URL.includes('supabase.co') && SUPABASE_KEY && SUPABASE_KEY.length > 10;
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase URL or Anon Key missing in environment variables');
 }
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
