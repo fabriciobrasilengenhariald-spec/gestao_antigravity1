@@ -1,0 +1,159 @@
+{
+    "name": "LD Aluguéis - Automação Diária (v4 - Verificado)",
+    "flow": [
+        {
+            "id": 1,
+            "module": "supabase:ActionSearchRows",
+            "version": 1,
+            "parameters": {
+                "__IMTCONN__": 0
+            },
+            "mapper": {
+                "table": "vw_alugueis_para_notificar",
+                "select": "*",
+                "limit": 500
+            },
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 0
+                }
+            }
+        },
+        {
+            "id": 2,
+            "module": "builtin:BasicRouter",
+            "version": 1,
+            "metadata": {
+                "designer": {
+                    "x": 300,
+                    "y": 0
+                }
+            }
+        },
+        {
+            "id": 3,
+            "module": "google-email:ActionSendEmail",
+            "version": 2,
+            "parameters": {
+                "__IMTCONN__": 0
+            },
+            "mapper": {
+                "to": [
+                    "{{1.engenheiro_email}}"
+                ],
+                "subject": "LOCAÇÃO - {{1.obra_nome}} — Vencimento em 24 horas",
+                "html": "<h1>Aviso de Vencimento</h1><p>Prezado {{1.engenheiro_nome}}, a locação de <b>{{1.equipamento}}</b> vence em 24 horas na obra {{1.obra_nome}}.</p>",
+                "cc": []
+            },
+            "metadata": {
+                "designer": {
+                    "x": 600,
+                    "y": -150
+                },
+                "filter": {
+                    "name": "Aviso 24h",
+                    "conditions": [
+                        [
+                            {
+                                "a": "{{1.tipo_notificacao}}",
+                                "o": "text:equal",
+                                "b": "aviso_24h"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        {
+            "id": 4,
+            "module": "google-email:ActionSendEmail",
+            "version": 2,
+            "parameters": {
+                "__IMTCONN__": 0
+            },
+            "mapper": {
+                "to": [
+                    "{{1.engenheiro_email}}"
+                ],
+                "subject": "LOCAÇÃO - {{1.obra_nome}} — Locação VENCIDA hoje",
+                "html": "<h1>Vencido Hoje</h1><p>Prezado {{1.engenheiro_nome}}, a locação de <b>{{1.equipamento}}</b> venceu HOJE na obra {{1.obra_nome}}.</p>"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 600,
+                    "y": 0
+                },
+                "filter": {
+                    "name": "Vencido Hoje",
+                    "conditions": [
+                        [
+                            {
+                                "a": "{{1.tipo_notificacao}}",
+                                "o": "text:equal",
+                                "b": "vencido_hoje"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        {
+            "id": 5,
+            "module": "google-email:ActionSendEmail",
+            "version": 2,
+            "parameters": {
+                "__IMTCONN__": 0
+            },
+            "mapper": {
+                "to": [
+                    "{{1.engenheiro_email}}"
+                ],
+                "subject": "🚨 URGENTE - LOCAÇÃO - {{1.obra_nome}} — 3 dias em atraso",
+                "html": "<h1>3 Dias em Atraso</h1><p>Prezado {{1.engenheiro_nome}}, a locação de <b>{{1.equipamento}}</b> na obra {{1.obra_nome}} está atrasada há 3 dias.</p>"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 600,
+                    "y": 150
+                },
+                "filter": {
+                    "name": "Atraso 3d",
+                    "conditions": [
+                        [
+                            {
+                                "a": "{{1.tipo_notificacao}}",
+                                "o": "text:equal",
+                                "b": "atraso_3d"
+                            }
+                        ]
+                    ]
+                }
+            }
+        },
+        {
+            "id": 6,
+            "module": "supabase:ActionCreateRow",
+            "version": 1,
+            "parameters": {
+                "__IMTCONN__": 0
+            },
+            "mapper": {
+                "table": "notificacoes",
+                "id_aluguel": "{{1.id_aluguel}}",
+                "tipo_email": "{{1.tipo_notificacao}}",
+                "email_destino": "{{1.engenheiro_email}}",
+                "status": "sent"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 900,
+                    "y": 0
+                }
+            }
+        }
+    ],
+    "metadata": {
+        "version": 1
+    }
+}
